@@ -62,6 +62,7 @@ class FourierLayer(nn.Module):
         
         self.spectral = SpectralConv2d(width, width, modes1, modes2)
         self.conv = nn.Conv2d(width, width, kernel_size=1)
+        self.bn = nn.BatchNorm2d(width)
         
     def forward(self, x):
         """Args:
@@ -70,6 +71,27 @@ class FourierLayer(nn.Module):
         spectral_branch = self.spectral(x)
         local_branch = self.conv(x)
         
-        out = F.relu(spectral_branch + local_branch)
+        out = F.relu(self.bn(spectral_branch + local_branch))
+        
+        return out
+    
+# Full architecture
+class FNO2d(nn.Module):
+    def __init__(self, in_steps, modes1, modes2, width):
+        super().__init__()
+        
+        self.p = nn.Conv2d(in_steps, width, kernel_size=1)
+        self.q = nn.Sequential(
+            nn.Conv2d(width, 128, kernel_size=1),
+            nn.ReLU(),
+            nn.Conv2d(128, 1, kernel_size=1)
+            )
+        self.layers = nn.ModuleList([FourierLayer(width, modes1, modes2) for _ in range(4)])
+        
+    def forward(self, x):
+        x = self.p(x)
+        for layer in self.layers:
+            x = layer(x)
+        out = self.q(x)
         
         return out
