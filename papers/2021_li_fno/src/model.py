@@ -1,6 +1,8 @@
 import torch.nn as nn
 import torch
+import torch.nn.functional as F
 
+# Fourier integral operator
 class SpectralConv2d(nn.Module):
     def __init__(self, in_channels, out_channels, modes1, modes2):
         super().__init__()
@@ -52,3 +54,22 @@ class SpectralConv2d(nn.Module):
             )
         
         return torch.fft.irfft2(out_ft, s=(H,W))
+    
+# Full Fourier layer
+class FourierLayer(nn.Module):
+    def __init__(self, width, modes1, modes2):
+        super().__init__()
+        
+        self.spectral = SpectralConv2d(width, width, modes1, modes2)
+        self.conv = nn.Conv2d(width, width, kernel_size=1)
+        
+    def forward(self, x):
+        """Args:
+            x: dim (B, width, H, W)
+        """
+        spectral_branch = self.spectral(x)
+        local_branch = self.conv(x)
+        
+        out = F.relu(spectral_branch + local_branch)
+        
+        return out
